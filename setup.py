@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'whity_server = whity_server.main:main',
+            'convert = whity_server.main:convert'
         ],
     },
     install_requires=requirements

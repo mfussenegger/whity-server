@@ -5,6 +5,8 @@ import sys
 import cv2
 import numpy as np
 import json
+import os
+from collections import OrderedDict
 from io import BytesIO
 from os.path import dirname, join, isfile
 
@@ -105,7 +107,6 @@ def detect_person(img):
 #close = cv2.morphologyEx(img, cv2.MORPH_CLOSE,kernel1)
 #div = np.float32(img)/(close)
 #img = np.uint8(cv2.normalize(div,div,0,255,cv2.NORM_MINMAX))
-#res = np.hstack((img, equ))
 
 #print('fromstring')
 ##data = np.asarray(bytearray(image.getvalue()), dtype=np.uint8)
@@ -135,31 +136,78 @@ def blur(image):
     return cv2.GaussianBlur(image, (9, 9), 2.0)
 
 
+def good_features(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    corners = cv2.goodFeaturesToTrack(gray, 25, 0.01, 10)
+    corners = np.int0(corners)
+    for i in corners:
+        x,y = i.ravel()
+        cv2.circle(image, (x,y), 3, 255, -1)
+
+    return image
+
+
+def invert(image):
+    return (255 - image)
+
+
+def threshold_adaptive_gaussian(img):
+    if len(img.shape) == 3:
+        img = cv2.split(img)[0]
+    img = cv2.adaptiveThreshold(
+        img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    return img
+
+
+def threshold_adaptive_mean(img):
+    if len(img.shape) == 3:
+        img = cv2.split(img)[0]
+    img = cv2.adaptiveThreshold(
+        img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
+    return img
+
+
 filters = {
     1: detect_face,
     2: grayscale,
     3: equalize_hist,
     4: canny,
     5: blur,
+    6: good_features,
+    7: invert,
+    8: threshold_adaptive_mean,
+    9: threshold_adaptive_gaussian
 }
 
-active_filters = {}
+active_filters = OrderedDict()
 
 
 class ModeHandler(RequestHandler):
     def post(self):
         payload = json.loads(self.request.body)
-        new_filter = int(payload.get('filter_id'))
-        print(new_filter)
+        try:
+            new_filter = int(payload.get('filter_id'))
+        except ValueError:
+            return self.write({"error": "invalid filter format"})
+        if new_filter == 16:
+            active_filters.clear()
+            return self.write({'reset': 'ok'})
         if new_filter in active_filters:
             del active_filters[new_filter]
-            self.write({"new_state": "off"})
+            self.write({
+                "new_state": False,
+                "filter_id": new_filter
+            })
         else:
             if new_filter not in filters:
                 self.write({"error": "unknown filter"})
             else:
                 active_filters[new_filter] = filters[new_filter]
-                self.write({"new_state": "on"})
+                self.write({
+                    "new_state": True,
+                    "filter_id": new_filter
+                })
 
 
 def process_image(image):
@@ -168,7 +216,11 @@ def process_image(image):
     img = cv2.imread('image.jpg')
 
     for f in active_filters.values():
-        img = f(img)
+        try:
+            img = f(img)
+        except Exception as e:
+            print(e)
+            continue
 
     cv2.imwrite('image.jpg', img)
     return open('image.jpg', 'rb').read()
@@ -236,6 +288,63 @@ class WhityApp(Application):
         template_path = join(root, 'templates')
         self.env = Environment(loader=FileSystemLoader(template_path))
         super(WhityApp, self).__init__(handlers, **settings)
+
+
+def _convert(image_path):
+    img = cv2.imread(image_path)
+    img = cv2.GaussianBlur(img, (5, 5), 10)
+
+    img = cv2.resize(img, (0,0), fx=0.2, fy=0.2) 
+
+    triangles = []
+    for gray in cv2.split(img):
+        for thrs in xrange(0, 255, 26):
+            if thrs == 0:
+                i = cv2.Canny(gray, 40, 120)
+                i = cv2.dilate(i, None)
+            else:
+                _, i = cv2.threshold(gray, thrs, 255, cv2.THRESH_BINARY)
+        countours, hierarchy = cv2.findContours(
+            i, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cnt in countours:
+            cnt_len = cv2.arcLength(cnt, True)
+            cnt = cv2.approxPolyDP(cnt, 0.02 * cnt_len, True)
+            if len(cnt) == 3:
+                print(cnt)
+                cnt = cnt.reshape(-1, 2)
+                triangles.append(cnt)
+
+
+    #img = blur(img)
+    #mg = equalize_hist(img)
+    #img = invert(img)
+    r = 40
+    #img = cv2.Canny(img, r, 3 * r)
+    #img = invert(img)
+    #img = invert(img)
+    #img = good_features(img)
+
+    #img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #corners = cv2.goodFeaturesToTrack(img, 3, 0.99, 10)
+    #corners = np.int0(corners)
+    #for i in corners:
+    #    x,y = i.ravel()
+    #    cv2.circle(img, (x,y), 3, 255, -1)
+    cv2.drawContours(img, triangles, -1, (0, 255, 0), 3)
+    cv2.imwrite('tmp.jpg', img)
+
+
+def convert():
+    from argparse import ArgumentParser
+    p = ArgumentParser('convert')
+    p.add_argument('path')
+    path = p.parse_args().path
+    IMAGE_VIEWER = ('/usr/bin/open'
+                    if os.path.exists('/usr/bin/open')
+                    else '/usr/bin/xdg-open')
+    from subprocess import call
+    _convert(path)
+    call([IMAGE_VIEWER, 'tmp.jpg'])
 
 
 def main():
