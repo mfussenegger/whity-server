@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
 
   <script type="text/javascript">
-    var ws = new WebSocket("ws://localhost:8080/websocket");
+    var ws = new WebSocket("ws://" + window.location.host + "/websocket");
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = function() {

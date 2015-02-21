@@ -4,6 +4,7 @@
 import sys
 import cv2
 import numpy as np
+import json
 from io import BytesIO
 from os.path import dirname, join, isfile
 
@@ -100,17 +101,11 @@ def detect_person(img):
 #print(type(img))
 #print(dir(img))
 #return img
-#img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#img = cv2.equalizeHist(img)
-
 #kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
 #close = cv2.morphologyEx(img, cv2.MORPH_CLOSE,kernel1)
 #div = np.float32(img)/(close)
 #img = np.uint8(cv2.normalize(div,div,0,255,cv2.NORM_MINMAX))
 #res = np.hstack((img, equ))
-#img = cv2.GaussianBlur(img, (9, 9), 2.0)
-#r = 60
-#img = cv2.Canny(img, r, 3 * r)
 
 #print('fromstring')
 ##data = np.asarray(bytearray(image.getvalue()), dtype=np.uint8)
@@ -123,13 +118,57 @@ def detect_person(img):
 #    cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 #return image
 
+def grayscale(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+
+def equalize_hist(image):
+    return cv2.equalizeHist(grayscale(image))
+
+
+def canny(image):
+    r = 60
+    return cv2.Canny(image, r, 3 * r)
+
+
+def blur(image):
+    return cv2.GaussianBlur(image, (9, 9), 2.0)
+
+
+filters = {
+    1: detect_face,
+    2: grayscale,
+    3: equalize_hist,
+    4: canny,
+    5: blur,
+}
+
+active_filters = {}
+
+
+class ModeHandler(RequestHandler):
+    def post(self):
+        payload = json.loads(self.request.body)
+        new_filter = int(payload.get('filter_id'))
+        print(new_filter)
+        if new_filter in active_filters:
+            del active_filters[new_filter]
+            self.write({"new_state": "off"})
+        else:
+            if new_filter not in filters:
+                self.write({"error": "unknown filter"})
+            else:
+                active_filters[new_filter] = filters[new_filter]
+                self.write({"new_state": "on"})
+
 
 def process_image(image):
     with open('image.jpg', 'wb') as f:
         f.write(image.getvalue())
     img = cv2.imread('image.jpg')
 
-    img = detect_face(img)
+    for f in active_filters.values():
+        img = f(img)
 
     cv2.imwrite('image.jpg', img)
     return open('image.jpg', 'rb').read()
@@ -188,6 +227,7 @@ class WhityApp(Application):
         handlers = [
             (r'/upload/?', UploadHandler),
             (r'/websocket/?', WebSocket),
+            (r'/mode/?', ModeHandler),
             (r'/', MainHandler)
         ]
         settings = {
