@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 from io import BytesIO
 from os.path import dirname, join, isfile
-from collections import deque
 
 import tornado.ioloop
 
@@ -21,46 +20,6 @@ from tornado.web import (
     HTTPError
 )
 from tornado.options import define, options, parse_command_line
-
-
-images = deque(maxlen=3)
-
-
-class Base(RequestHandler):
-    @property
-    def env(self):
-        return self.application.env
-
-    def render(self, template, **kwargs):
-        try:
-            template = self.env.get_template(template)
-        except TemplateNotFound:
-            raise HTTPError(404)
-        self.write(template.render(kwargs))
-
-
-class WebSocket(WebSocketHandler):
-
-    clients = set()
-
-    def open(self):
-        WebSocket.clients.add(self)
-
-    def on_message(self, message):
-        pass
-
-    def on_close(self):
-        WebSocket.clients.remove(self)
-
-    @classmethod
-    def send_image(cls, image):
-        for client in cls.clients:
-            client.write_message(image, binary=True)
-
-
-class MainHandler(Base):
-    def get(self):
-        self.render('index.html')
 
 
 def inside(r, q):
@@ -135,60 +94,45 @@ def detect_person(img):
 
 
 
-class ImageHandler(RequestHandler):
+#img = detect_face(img)
+#detect_person(img)
+#result, img = cv2.imencode('*.jpeg', img)
+#print(type(img))
+#print(dir(img))
+#return img
+#img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#img = cv2.equalizeHist(img)
 
-    last_image = None
+#kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+#close = cv2.morphologyEx(img, cv2.MORPH_CLOSE,kernel1)
+#div = np.float32(img)/(close)
+#img = np.uint8(cv2.normalize(div,div,0,255,cv2.NORM_MINMAX))
+#res = np.hstack((img, equ))
+#img = cv2.GaussianBlur(img, (9, 9), 2.0)
+#r = 60
+#img = cv2.Canny(img, r, 3 * r)
 
-    def process_image(self, image):
-        with open('image.jpg', 'wb') as f:
-            f.write(image.getvalue())
-        img = cv2.imread('image.jpg')
-        #img = detect_face(img)
-        #detect_person(img)
-        #result, img = cv2.imencode('*.jpeg', img)
-        #print(type(img))
-        #print(dir(img))
-        #return img
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img = cv2.equalizeHist(img)
+#print('fromstring')
+##data = np.asarray(bytearray(image.getvalue()), dtype=np.uint8)
+#image.seek(0)
+#data = np.fromstring(image.getvalue(), dtype=np.uint8)
+#print('decode')
+#img = cv2.imdecode(data, -1)
+#if img:
+#    print('cvtColor')
+#    cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#return image
 
-        #kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
-        #close = cv2.morphologyEx(img, cv2.MORPH_CLOSE,kernel1)
-        #div = np.float32(img)/(close)
-        #img = np.uint8(cv2.normalize(div,div,0,255,cv2.NORM_MINMAX))
-        #res = np.hstack((img, equ))
-        #img = cv2.GaussianBlur(img, (9, 9), 2.0)
-        r = 60
-        img = cv2.Canny(img, r, 3 * r)
 
-        cv2.imwrite('image.jpg', img)
-        return open('image.jpg', 'rb').read()
-        #print('fromstring')
-        ##data = np.asarray(bytearray(image.getvalue()), dtype=np.uint8)
-        #image.seek(0)
-        #data = np.fromstring(image.getvalue(), dtype=np.uint8)
-        #print('decode')
-        #img = cv2.imdecode(data, -1)
-        #if img:
-        #    print('cvtColor')
-        #    cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        #return image
+def process_image(image):
+    with open('image.jpg', 'wb') as f:
+        f.write(image.getvalue())
+    img = cv2.imread('image.jpg')
 
-    def get(self):
-        try:
-            image = images.pop()
-        except IndexError:
-            image = ImageHandler.last_image
-        if not image:
-            self.write('No images received')
-            return
-        else:
-            ImageHandler.last_image = image
-        image = self.process_image(image)
-        #image = image.getvalue()
-        self.set_header('Content-type', 'image/jpg')
-        self.set_header('Content-length', len(image))
-        self.write(image)
+    img = detect_face(img)
+
+    cv2.imwrite('image.jpg', img)
+    return open('image.jpg', 'rb').read()
 
 
 @stream_request_body
@@ -196,7 +140,8 @@ class UploadHandler(RequestHandler):
 
     def post(self):
         self.f.flush()
-        WebSocket.send_image(self.f.getvalue())
+        image = process_image(self.f)
+        WebSocket.send_image(image)
         self.finish()
 
     def prepare(self):
@@ -206,12 +151,42 @@ class UploadHandler(RequestHandler):
         self.f.write(data)
 
 
+class WebSocket(WebSocketHandler):
+
+    clients = set()
+
+    def open(self):
+        WebSocket.clients.add(self)
+
+    def on_message(self, message):
+        pass
+
+    def on_close(self):
+        WebSocket.clients.remove(self)
+
+    @classmethod
+    def send_image(cls, image):
+        for client in cls.clients:
+            client.write_message(image, binary=True)
+
+
+class MainHandler(RequestHandler):
+    def render(self, template, **kwargs):
+        try:
+            template = self.application.env.get_template(template)
+        except TemplateNotFound:
+            raise HTTPError(404)
+        self.write(template.render(kwargs))
+
+    def get(self):
+        self.render('index.html')
+
+
 class WhityApp(Application):
     def __init__(self, root, debug_mode=False):
         debug = debug_mode or isfile(join(root, 'debug'))
         handlers = [
             (r'/upload/?', UploadHandler),
-            (r'/image/?', ImageHandler),
             (r'/websocket/?', WebSocket),
             (r'/', MainHandler)
         ]
