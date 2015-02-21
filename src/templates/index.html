@@ -3,10 +3,39 @@
 <head>
   <title>Yay</title>
   <meta charset="utf-8" />
-  <meta http-equiv="refresh" content="0.8">
+
+  <script type="text/javascript">
+    var ws = new WebSocket("ws://localhost:8080/websocket");
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = function() {
+      document.getElementById("status").textContent = "Connection open";
+    };
+
+    ws.onclose = function() {
+      document.getElementById("status").textContent = "Connection closed";
+    }
+
+    ws.onmessage = function (evt) {
+
+      var arrayBuffer = evt.data;
+      var bytes = new Uint8Array(arrayBuffer);
+      var blob        = new Blob([bytes.buffer]);
+
+      var image = document.getElementById('image');
+
+      var reader = new FileReader();
+      reader.onload = function(e) {
+          image.src = e.target.result;
+      };
+      reader.readAsDataURL(blob);
+    }
+  </script>
 </head>
 <body>
-
-  <img src="/image/" />
+  <p id="status">
+    Connection closed
+  </p>
+  <img id="image" src="/image/" />
 </body>
 </html>

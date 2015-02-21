@@ -13,6 +13,7 @@ import tornado.ioloop
 from jinja2 import Environment, FileSystemLoader
 from jinja2.exceptions import TemplateNotFound
 
+from tornado.websocket import WebSocketHandler
 from tornado.web import (
     Application,
     RequestHandler,
@@ -36,6 +37,25 @@ class Base(RequestHandler):
         except TemplateNotFound:
             raise HTTPError(404)
         self.write(template.render(kwargs))
+
+
+class WebSocket(WebSocketHandler):
+
+    clients = set()
+
+    def open(self):
+        WebSocket.clients.add(self)
+
+    def on_message(self, message):
+        pass
+
+    def on_close(self):
+        WebSocket.clients.remove(self)
+
+    @classmethod
+    def send_image(cls, image):
+        for client in cls.clients:
+            client.write_message(image, binary=True)
 
 
 class MainHandler(Base):
@@ -176,7 +196,7 @@ class UploadHandler(RequestHandler):
 
     def post(self):
         self.f.flush()
-        images.append(self.f)
+        WebSocket.send_image(self.f.getvalue())
         self.finish()
 
     def prepare(self):
@@ -192,6 +212,7 @@ class WhityApp(Application):
         handlers = [
             (r'/upload/?', UploadHandler),
             (r'/image/?', ImageHandler),
+            (r'/websocket/?', WebSocket),
             (r'/', MainHandler)
         ]
         settings = {
