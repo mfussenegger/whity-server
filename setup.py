@@ -4,23 +4,22 @@
 
 from setuptools import setup
 
-
 requirements = [
     'tornado',
     'jinja2'
 ]
 
-
 setup(
-    name='whity_server',
-    packages=['whity_server'],
+    name='whity',
+    packages=['whity_server','whity_client'],
     package_dir={
         '': 'src'
     },
     entry_points={
         'console_scripts': [
             'whity_server = whity_server.main:main',
-            'convert = whity_server.main:convert'
+            'whity_client = whity_client.main:main',
+            'convert = whity_server.main:convert',
         ],
     },
     install_requires=requirements

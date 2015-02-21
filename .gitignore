@@ -4,3 +4,4 @@ bin/
 develop-eggs/
 parts/
 *.egg-info/
+*.py[oc]
