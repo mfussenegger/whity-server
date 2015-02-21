@@ -13,7 +13,7 @@
       var retry = function(){
 	pid = window.setInterval(function(){
 	      console.log('retry ...');
-	      connect(host);
+	      connect();
 	    }, 1000);
       };
       
@@ -46,8 +46,8 @@
 	reader.readAsDataURL(blob);
       };
 
-      var connect = function(host){
-	ws = new WebSocket(host);
+      var connect = function(){
+	ws = new WebSocket(wsHost);
         ws.binaryType = 'arraybuffer';
 	ws.onopen = onOpen;
 	ws.onclose = onClose;
@@ -56,7 +56,7 @@
       };
 
       try {
-	connect(wsHost);
+	connect();
       } catch (e) {
 	retry();
       }
