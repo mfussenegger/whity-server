@@ -74,6 +74,9 @@ class MidiHandler(object):
             new_state = response['new_state']
             self.states[filter_id] = new_state
             logger.info('Filter: {} ==> {}'.format(filter_id, new_state))
+        elif response.has_key('reset'):
+            self.states = [False for x in xrange(16)]
+            logger.warn('Reset: {}'.format(response['reset']))
         else:
             logger.warn(response)
 

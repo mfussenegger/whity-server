@@ -7,23 +7,34 @@
   <script type="text/javascript">
     window.onload = function(){
       var status = document.getElementById("status");
-      
-      var ws = new WebSocket("ws://" + window.location.host + "/websocket");
-      ws.binaryType = 'arraybuffer';
+      var ws = null, pid = null;
+      var wsHost = "ws://" + window.location.host + "/websocket";
 
-      ws.onopen = function() {
+      var retry = function(){
+	pid = window.setInterval(function(){
+	      console.log('retry ...');
+	      connect(host);
+	    }, 1000);
+      };
+      
+      var onOpen = function(e) {
+	window.clearInterval(pid);
+	pid = null;
+        ws = e.target;
 	status.textContent = "CONNECTED";
 	status.classList.remove('label-danger');
 	status.classList.add('label-success');
       };
 
-      ws.onclose = function() {
+      var onClose = function() {
         status.textContent = "DISCONNECTED";
 	status.classList.add('label-danger');
 	status.classList.remove('label-success');
+        ws = null;
+	retry();
       };
 
-      ws.onmessage = function (evt) {
+      var onMessage = function (evt) {
 	var arrayBuffer = evt.data;
 	var bytes = new Uint8Array(arrayBuffer);
 	var blob = new Blob([bytes.buffer]);
@@ -34,6 +45,22 @@
 	};
 	reader.readAsDataURL(blob);
       };
+
+      var connect = function(host){
+	ws = new WebSocket(host);
+        ws.binaryType = 'arraybuffer';
+	ws.onopen = onOpen;
+	ws.onclose = onClose;
+	ws.onmessage = onMessage;
+	return ws;
+      };
+
+      try {
+	connect(wsHost);
+      } catch (e) {
+	retry();
+      }
+
     };
   </script>
 </head>
@@ -60,10 +87,10 @@
     <div class="wrapper">
   <div class="container">
     <div class="row">
-      <div class="col-lg-6">
+      <div class="col-sm-6">
 	<img class="img-responsive thumbnail" id="image" src="/image/" />
       </div>
-      <div class="col-lg-6">
+      <div class="col-sm-6">
 	<h1>Setup</h1>
 	<p class="lead"></p>
 	<ul>
