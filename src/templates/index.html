@@ -3,39 +3,70 @@
 <head>
   <title>Yay</title>
   <meta charset="utf-8" />
-
+  <link rel="stylesheet" href="/static/style.css" />
   <script type="text/javascript">
-    var ws = new WebSocket("ws://" + window.location.host + "/websocket");
-    ws.binaryType = 'arraybuffer';
+    window.onload = function(){
+      var status = document.getElementById("status");
+      
+      var ws = new WebSocket("ws://" + window.location.host + "/websocket");
+      ws.binaryType = 'arraybuffer';
 
-    ws.onopen = function() {
-      document.getElementById("status").textContent = "Connection open";
-    };
-
-    ws.onclose = function() {
-      document.getElementById("status").textContent = "Connection closed";
-    }
-
-    ws.onmessage = function (evt) {
-
-      var arrayBuffer = evt.data;
-      var bytes = new Uint8Array(arrayBuffer);
-      var blob        = new Blob([bytes.buffer]);
-
-      var image = document.getElementById('image');
-
-      var reader = new FileReader();
-      reader.onload = function(e) {
-          image.src = e.target.result;
+      ws.onopen = function() {
+	status.textContent = "Connection open";
+	status.classList.remove('label-danger');
+	status.classList.add('label-success');
       };
-      reader.readAsDataURL(blob);
-    }
+
+      ws.onclose = function() {
+        textContent = "Connection closed";
+	status.classList.add('label-danger');
+	status.classList.remove('label-success');
+      };
+
+      ws.onmessage = function (evt) {
+	var arrayBuffer = evt.data;
+	var bytes = new Uint8Array(arrayBuffer);
+	var blob = new Blob([bytes.buffer]);
+	var image = document.getElementById('image');
+	var reader = new FileReader();
+	reader.onload = function(e) {
+          image.src = e.target.result;
+	};
+	reader.readAsDataURL(blob);
+      };
+    };
   </script>
 </head>
 <body>
-  <p id="status">
-    Connection closed
-  </p>
-  <img id="image" src="/image/" />
+
+    <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="/">Yey!</a>
+        </div>
+        <div class="navbar-collapse collapse">
+        </div>
+      </div>
+    </nav>
+
+<div class="wrapper">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-6">
+	<img class="img-responsive thumbnail" id="image" src="/image/" />
+      </div>
+      <div class="col-lg-6">
+	<p class="label text-danger" id="status">Connection closed.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 </body>
 </html>

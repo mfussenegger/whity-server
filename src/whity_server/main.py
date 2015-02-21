@@ -19,11 +19,14 @@ from tornado.websocket import WebSocketHandler
 from tornado.web import (
     Application,
     RequestHandler,
+    StaticFileHandler,
     stream_request_body,
     HTTPError
 )
 from tornado.options import define, options, parse_command_line
 
+
+PROJECT_ROOT = join(dirname(__file__), '..')
 
 def inside(r, q):
     rx, ry, rw, rh = r
@@ -280,7 +283,8 @@ class WhityApp(Application):
             (r'/upload/?', UploadHandler),
             (r'/websocket/?', WebSocket),
             (r'/mode/?', ModeHandler),
-            (r'/', MainHandler)
+            (r'/static/(.*)$', StaticFileHandler, {"path": join(root, 'static')}),
+            (r'/', MainHandler),
         ]
         settings = {
             'debug': debug
@@ -351,10 +355,8 @@ def main():
     define('port', default=8080, help='run on the given port', type=int)
     parse_command_line()
 
-    here = dirname(__file__)
-    project_root = join(here, '..')
 
-    app = WhityApp(project_root)
+    app = WhityApp(PROJECT_ROOT)
     app.listen(options.port)
     try:
         print('Starting on http://localhost:{0}/'.format(options.port))
